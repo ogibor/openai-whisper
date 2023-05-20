@@ -585,6 +585,7 @@ class DecodingTask:
             )
             if self.sample_len is not None:
                 max_prefix_len = self.n_ctx // 2 - self.sample_len
+                print('Sample len', self.sample_len, max_prefix_len, len(prefix_tokens))
                 prefix_tokens = prefix_tokens[-max_prefix_len:]
             tokens = tokens + prefix_tokens
 
@@ -594,6 +595,7 @@ class DecodingTask:
                 if isinstance(prompt, str)
                 else prompt
             )
+            print('last tokens', self.n_ctx // 2 - 1, 'all tokens', len(prompt_tokens), len(tokens))
             tokens = (
                 [self.tokenizer.sot_prev]
                 + prompt_tokens[-(self.n_ctx // 2 - 1) :]

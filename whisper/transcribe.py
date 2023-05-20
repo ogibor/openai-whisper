@@ -1,5 +1,6 @@
 import argparse
 import os
+from string import punctuation
 import warnings
 from typing import TYPE_CHECKING, Optional, Tuple, Union
 
@@ -229,7 +230,8 @@ def transcribe(
             segment_duration = segment_size * HOP_LENGTH / SAMPLE_RATE
             mel_segment = pad_or_trim(mel_segment, N_FRAMES).to(model.device).to(dtype)
 
-            decode_options["prompt"] = all_tokens[prompt_reset_since:]
+            decode_options["prompt"] = initial_prompt_tokens + all_tokens[prompt_reset_since:]
+            print(tokenizer.decode(decode_options["prompt"]))
             result: DecodingResult = decode_with_fallback(mel_segment)
             tokens = torch.tensor(result.tokens)
 
@@ -357,7 +359,10 @@ def transcribe(
                 [token for segment in current_segments for token in segment["tokens"]]
             )
 
-            if not condition_on_previous_text or result.temperature > 0.5:
+            decoded = tokenizer.decode(all_tokens)
+            print('Last token', decoded[-10:], decoded[-1] in punctuation) #, tokenizer.decode(all_tokens[-1:])[-1] in punctuation)
+            # if not condition_on_previous_text or result.temperature > 0.5:
+            if decoded[-1] in punctuation:
                 # do not feed the prompt tokens if a high temperature was used
                 prompt_reset_since = len(all_tokens)
 
