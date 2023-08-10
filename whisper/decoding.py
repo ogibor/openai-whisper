@@ -98,6 +98,7 @@ class DecodingOptions:
     # https://github.com/openai/whisper/discussions/117#discussioncomment-3727051
     prompt: Optional[Union[str, List[int]]] = None  # for the previous context
     prefix: Optional[Union[str, List[int]]] = None  # to prefix the current context
+    initial_prompt: Optional[Union[str, List[int]]] = None # pass initial prompt to decoder
 
     # list of tokens ids (or comma-separated token ids) to suppress
     # "-1" will suppress a set of symbols as defined in `tokenizer.non_speech_tokens()`
@@ -593,18 +594,56 @@ class DecodingTask:
                 prefix_tokens = prefix_tokens[-max_prefix_len:]
             tokens = tokens + prefix_tokens
 
+        if initial_prompt := self.options.initial_prompt:
+            initial_prompt_tokens = (
+                self.tokenizer.encode(" " + initial_prompt.strip())
+                if isinstance(initial_prompt, str)
+                else initial_prompt
+            )
+        else:
+            initial_prompt_tokens = []
+
         if prompt := self.options.prompt:
             prompt_tokens = (
                 self.tokenizer.encode(" " + prompt.strip())
                 if isinstance(prompt, str)
                 else prompt
             )
+
+            if initial_prompt_tokens:
+                prompt_sentences = [[]]
+                sentence_end_marks = ".。!！?？"
+
+                for token in prompt_tokens:
+                    # Append token to last sentence
+                    prompt_sentences[-1].append(token)
+                    decoded = self.tokenizer.decode([token])
+                    # If token is end of sentence, add a new sentence to the back of the list
+                    if decoded and decoded in sentence_end_marks:
+                        prompt_sentences.append([])
+
+                max_prompt_size = self.n_ctx // 2 - 1 - len(initial_prompt_tokens)
+                
+                reversed_prompt_sentences = prompt_sentences[::-1]
+                current_prompt_size = 0
+                eligible_prompt_sentences = []
+                for (i, sentence) in enumerate(reversed_prompt_sentences):
+                    current_prompt_size += len(sentence)
+                    # Always include the last sentence in the list, since it will either be empty or partial (which we always want to include) 
+                    if i == 0 or current_prompt_size <= max_prompt_size:
+                        eligible_prompt_sentences.append(sentence)
+
+                limited_prompt_tokens = []
+                # Put eligible sentences in correct order and flatten them back into tokens
+                for sentence in eligible_prompt_sentences[::-1]:
+                    limited_prompt_tokens += sentence
+                prompt_tokens = initial_prompt_tokens + limited_prompt_tokens
+
             tokens = (
                 [self.tokenizer.sot_prev]
                 + prompt_tokens[-(self.n_ctx // 2 - 1) :]
                 + tokens
             )
-
         return tuple(tokens)
 
     def _get_suppress_tokens(self) -> Tuple[int]:
