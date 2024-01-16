@@ -202,7 +202,7 @@ def find_alignment(
         hook.remove()
 
     # heads * tokens * frames
-    weights = torch.stack([QKs[l][h] for l, h in model.alignment_heads.indices().T])
+    weights = torch.stack([QKs[_l][_h] for _l, _h in model.alignment_heads.indices().T])
     weights = weights[:, :, : num_frames // 2]
     weights = (weights * qk_scale).softmax(dim=-1)
     std, mean = torch.std_mean(weights, dim=-2, keepdim=True, unbiased=False)
@@ -299,6 +299,7 @@ def add_word_timestamps(
     word_durations = np.array([t.end - t.start for t in alignment])
     word_durations = word_durations[word_durations.nonzero()]
     median_duration = np.median(word_durations) if len(word_durations) > 0 else 0.0
+    median_duration = min(0.7, float(median_duration))
     max_duration = median_duration * 2
 
     # hack: truncate long words at sentence boundaries.
